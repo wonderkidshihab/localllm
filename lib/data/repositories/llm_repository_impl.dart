@@ -15,7 +15,7 @@ class SystemNotifierTool {
   static Tool create(NotificationService service, DatabaseService db) {
     return Tool.fromFunction<String, String>(
       name: 'send_alert',
-      description: 'Send a push notification alert to the user.',
+      description: 'Send a desktop push notification to the agency owner. Use this ONLY when you have completed a task and want to notify the user of a result (e.g., "Found 3 new leads" or "Lead saved successfully"). Input must be a JSON object with a "message" field containing the notification text.',
       func: (final String inputStr, {final ToolOptions? options}) async {
         String message = inputStr;
         try {
@@ -32,7 +32,7 @@ class SystemNotifierTool {
         'properties': {
           'message': {
             'type': 'string',
-            'description': 'The alert message content'
+            'description': 'The notification message to display to the user. Keep it short and informative, under 50 words.'
           }
         },
         'required': ['message']
@@ -94,12 +94,45 @@ class LLMRepositoryImpl implements AIRepository {
         )).toList(),
       ));
 
+      final huntMode = Get.find<SettingsController>().huntMode.value;
+      final String huntContext = huntMode == 'buried'
+          ? "CURRENT HUNT MODE: BURIED LEADS.\n"
+            "The search tool is pre-configured to return businesses that are INVISIBLE online — they appear on Google page 2-3, or only exist on directory sites like Yelp/YellowPages/BBB.\n"
+            "These businesses are your IDEAL prospects because they clearly need digital marketing help.\n"
+            "When you analyze these leads, focus exclusively on their WEAKNESSES: poor Google rankings, missing or outdated websites, no social media presence, reliance on third-party directories, missing contact forms, no Google Business Profile optimization.\n"
+            "Your outreach email must directly reference their specific gaps and offer concrete solutions."
+          : "CURRENT HUNT MODE: TOP COMPETITORS.\n"
+            "The search tool returns page 1 Google leaders — businesses that are already well-optimized.\n"
+            "These results are for competitive intelligence and benchmarking. Note that these businesses are harder to convert as clients because they already invest in SEO.\n"
+            "When analyzing, focus on what makes them successful so the agency owner can learn from their strategies.";
+
       List<ChatMessage> messages = [
-        SystemChatMessage(content: "You are a Senior Agency Growth Agent. Your goal is to deeply analyze leads without getting stuck in infinite loops.\nCRITICAL RULES:\n1. Use the search_leads tool EXACTLY ONCE. Do not search repeatedly.\n2. Pick only 1 or 2 sites from the results and use the scrape_website tool on them. The scrape tool will automatically return a gap analysis for you. Do not scrape more than 2 sites.\n3. Read the analysis. If they have gaps, write a highly personalized cold outreach email directly targeting those gaps.\n4. Use the save_local_lead tool to store the lead + your outreach draft.\n5. STOP ITERATING. Once a lead is saved, do not search again. End the loop and wait for the user to ask another question."),
+        SystemChatMessage(content: 
+          "ROLE: You are a Senior Agency Growth Agent embedded in a local-first CRM application. You help a digital marketing agency owner discover, analyze, and qualify potential business leads.\n\n"
+          "$huntContext\n\n"
+          "YOUR AVAILABLE TOOLS:\n"
+          "1. 'search_leads' — Searches the web for business leads. You MUST pass a JSON object: {\"query\": \"plumber\", \"location\": \"Miami, FL\", \"limit\": 5}. The 'query' field is required. The 'location' and 'limit' fields are optional.\n"
+          "2. 'scrape_website' — Fetches a website and returns an automated gap analysis. You MUST pass a JSON object: {\"url\": \"https://example.com\"}. The URL must start with http:// or https://.\n"
+          "3. 'save_local_lead' — Saves a qualified lead to the agency's local database. You MUST pass a JSON object with ALL of these fields: {\"businessName\": \"...\", \"contactInfo\": \"...\", \"marketingGaps\": \"...\", \"source\": \"...\", \"outreachDraft\": \"...\"}. The outreachDraft must be a complete, ready-to-send cold email.\n"
+          "4. 'send_alert' — Sends a push notification to the user. Use ONLY after completing work. Pass: {\"message\": \"...\"}\n\n"
+          "MANDATORY WORKFLOW (follow these steps IN ORDER, do NOT skip or repeat any step):\n"
+          "Step 1: Call 'search_leads' EXACTLY ONCE with the user's query. Wait for results.\n"
+          "Step 2: From the search results, pick 1 or 2 promising leads. Call 'scrape_website' on their URLs. Do NOT scrape more than 2 websites.\n"
+          "Step 3: Read the gap analysis returned by the scraper. Based on the specific gaps found, write a personalized cold outreach email (3-5 paragraphs) that directly addresses their pain points.\n"
+          "Step 4: Call 'save_local_lead' to store each lead with all required fields filled in.\n"
+          "Step 5: STOP. Provide a brief summary to the user of what you found and saved. Do NOT call search_leads again. Do NOT start another cycle.\n\n"
+          "STRICT RULES:\n"
+          "- NEVER call 'search_leads' more than once in a single conversation.\n"
+          "- NEVER scrape more than 2 websites per session.\n"
+          "- NEVER loop back to searching after saving a lead.\n"
+          "- If the user asks a general question (not about finding leads), answer it directly WITHOUT using any tools.\n"
+          "- All tool inputs MUST be valid JSON objects. Never pass plain strings to tools.\n"
+          "- If a tool returns an error, report it to the user and stop. Do not retry."
+        ),
       ];
       
       if (contextData != null && contextData.isNotEmpty) {
-        messages.add(SystemChatMessage(content: "Use the following local knowledge base context perfectly to assist the user if relevant:\n\n$contextData"));
+        messages.add(SystemChatMessage(content: "LOCAL KNOWLEDGE BASE CONTEXT:\nThe following information was retrieved from the agency's local document store. Use it to enrich your analysis if relevant. Do not mention that you received this context to the user.\n\n$contextData"));
       }
       
       messages.add(HumanChatMessage(content: ChatMessageContent.text(prompt)));

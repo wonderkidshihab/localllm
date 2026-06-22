@@ -61,28 +61,36 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
       drawer: isDesktop ? null : _buildMobileDrawer(context),
-      body: Column(
+      body: Row(
         children: [
+          if (isDesktop) _buildThreadSidebar(theme),
+          if (isDesktop) VerticalDivider(width: 1, color: theme.dividerColor.withValues(alpha: 0.08)),
           Expanded(
-            child: Obx(
-              () => ListView.builder(
-                controller: _scrollController,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isDesktop ? (MediaQuery.of(context).size.width * 0.1) : 16, 
-                  vertical: 24
+            child: Column(
+              children: [
+                Expanded(
+                  child: Obx(
+                    () => ListView.builder(
+                      controller: _scrollController,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isDesktop ? (MediaQuery.of(context).size.width * 0.05) : 16, 
+                        vertical: 24
+                      ),
+                      itemCount: controller.messages.length + (controller.isThinking.value ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index == controller.messages.length && controller.isThinking.value) {
+                          return _buildThinkingIndicator();
+                        }
+                        final msg = controller.messages[index];
+                        return _buildMessageBubble(msg, theme);
+                      },
+                    ),
+                  ),
                 ),
-                itemCount: controller.messages.length + (controller.isThinking.value ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (index == controller.messages.length && controller.isThinking.value) {
-                    return _buildThinkingIndicator();
-                  }
-                  final msg = controller.messages[index];
-                  return _buildMessageBubble(msg, theme);
-                },
-              ),
+                _buildInputArea(theme, isDesktop),
+              ],
             ),
           ),
-          _buildInputArea(theme, isDesktop),
         ],
       ),
     );
@@ -212,6 +220,110 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildThreadSidebar(ThemeData theme) {
+    return Container(
+      width: 260,
+      color: theme.scaffoldBackgroundColor,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+            child: Row(
+              children: [
+                Icon(LucideIcons.history, size: 16, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  "CHAT HISTORY",
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: Obx(() {
+              final threads = controller.chatThreads;
+              if (threads.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      "No conversations yet.\nStart chatting!",
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.4),
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                itemCount: threads.length,
+                itemBuilder: (context, index) {
+                  final thread = threads[index];
+                  final isActive = controller.activeThreadId.value == thread['id'];
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: InkWell(
+                      onTap: () => controller.switchThread(thread['id']),
+                      borderRadius: BorderRadius.circular(10),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? theme.colorScheme.primary.withValues(alpha: 0.08)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              LucideIcons.messageSquare,
+                              size: 16,
+                              color: isActive
+                                  ? theme.colorScheme.primary
+                                  : theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.5),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                thread['title'] ?? 'Untitled',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                                  color: isActive
+                                      ? theme.colorScheme.primary
+                                      : theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.8),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            }),
+          ),
+        ],
       ),
     );
   }

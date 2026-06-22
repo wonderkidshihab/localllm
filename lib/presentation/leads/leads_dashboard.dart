@@ -9,7 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../shared/widgets/confirm_dialog.dart';
 
 class LeadsDashboard extends StatelessWidget {
-  final LeadsController controller = Get.put(LeadsController());
+  final LeadsController controller = Get.find<LeadsController>();
 
   LeadsDashboard({super.key});
 

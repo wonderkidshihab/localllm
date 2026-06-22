@@ -6,12 +6,17 @@ import '../../chat/chat_screen.dart';
 import '../../leads/leads_dashboard.dart';
 import '../../logs/logs_screen.dart';
 import '../../settings/settings_screen.dart';
+import '../../leads/leads_controller.dart';
 
 class DashboardController extends GetxController {
   var selectedIndex = 0.obs;
   
   void changeIndex(int index) {
     selectedIndex.value = index;
+    // Tab-Aware State Synchronization
+    if (index == 1) {
+      Get.find<LeadsController>().fetchLeads();
+    }
   }
 }
 
